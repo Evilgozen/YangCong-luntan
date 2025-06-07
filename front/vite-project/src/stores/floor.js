@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ref, computed } from 'vue';
 
 // API 基础 URL
-const API_URL = 'http://localhost:8000';
+const API_URL = 'http://0.0.0.0:8000';
 
 export const useFloorStore = defineStore('floor', () => {
   // State

@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ref, computed } from 'vue';
 
 // API 基础 URL - 与用户 store 保持一致
-const API_URL = 'http://localhost:8000';
+const API_URL = 'http://0.0.0.0:8000';
 
 export const usePostStore = defineStore('post', () => {
   // State

@@ -1,0 +1,36 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 在全局样式首行添加 */
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow-y: auto; /* 防止滚动条影响布局 */
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+#app {
+  height: 100%;
+  width: 100%;
+}
+
+
+.el-container {
+  flex: 1; /* 填充剩余空间 */
+  min-height: 0; /* 修复flex容器收缩问题 */
+}
+
+.el-main {
+  padding: 20px;
+  overflow-y: auto; /* 添加滚动 */
+  flex: 1;
+  min-height: 0; /* 关键修复项 */
+}

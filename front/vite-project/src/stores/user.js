@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ref, computed } from 'vue';
 
 // API 基础 URL - 修改此处以匹配您的后端 URL
-const API_URL = 'http://0.0.0.0:8000';
+const API_URL = 'http://127.0.0.1:8000';
 
 export const useUserStore = defineStore('user', () => {
   // State

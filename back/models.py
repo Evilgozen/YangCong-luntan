@@ -25,12 +25,18 @@ class User(UserBase, table=True):
     # 定义关系但不作为表字段
     posts: List["Post"] = Relationship(back_populates="author", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     floors: List["Floor"] = Relationship(back_populates="author", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    
+    # 关注关系
+    followers: List["Follow"] = Relationship(back_populates="followed", sa_relationship_kwargs={"foreign_keys": "[Follow.followed_id]", "cascade": "all, delete-orphan"})
+    following: List["Follow"] = Relationship(back_populates="follower", sa_relationship_kwargs={"foreign_keys": "[Follow.follower_id]", "cascade": "all, delete-orphan"})
 
 # 带关系的模型（用于API响应）
 class UserRead(UserBase):
     id: int
     posts: List["Post"] = []
     floors: List["Floor"] = []
+    followers_count: int = 0
+    following_count: int = 0
 
 # 基础帖子模型
 class PostBase(SQLModel):
@@ -80,3 +86,14 @@ class Floor(FloorBase, table=True):
             "remote_side": "Floor.id"
         }
     )
+
+# 关注关系模型
+class Follow(SQLModel, table=True):
+    # 使用复合主键，一个用户只能关注另一个用户一次
+    follower_id: int = Field(foreign_key="user.id", primary_key=True)
+    followed_id: int = Field(foreign_key="user.id", primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # 定义关系但不作为表字段
+    follower: "User" = Relationship(back_populates="following", sa_relationship_kwargs={"foreign_keys": "[Follow.follower_id]"})
+    followed: "User" = Relationship(back_populates="followers", sa_relationship_kwargs={"foreign_keys": "[Follow.followed_id]"})

@@ -20,26 +20,71 @@
               <div class="avatar-edit-hint" v-if="isCurrentUser">点击更换头像</div>
             </div>
             
-            <el-descriptions title="个人信息" :column="1" border>
-              <el-descriptions-item label="用户名">{{ profileData.user.username }}</el-descriptions-item>
-              <el-descriptions-item label="邮箱">{{ profileData.user.email }}</el-descriptions-item>
-              <el-descriptions-item label="发帖数">{{ profileData.post_count }}</el-descriptions-item>
-              <el-descriptions-item label="回复数">{{ profileData.floor_count }}</el-descriptions-item>
-              <el-descriptions-item label="注册时间">{{ formatDate(profileData.user.created_at) }}</el-descriptions-item>
-              <el-descriptions-item label="上次登录">
-                {{ profileData.user.last_login ? formatDate(profileData.user.last_login) : '暂无记录' }}
-              </el-descriptions-item>
-            </el-descriptions>
-            
-            <div class="bio-section">
-              <div class="bio-header">
-                <h3>个人简介</h3>
-                <el-button v-if="isCurrentUser" type="primary" size="small" @click="showBioEdit = true">编辑</el-button>
+            <div class="user-stats">
+              <div class="stat-item">
+                <div class="stat-value">{{ profileData.post_count }}</div>
+                <div class="stat-label">发帖</div>
               </div>
-              <div class="bio-content">
-                {{ profileData.user.bio || '这个人很懒，还没有填写个人简介...' }}
+              <div class="stat-item">
+                <div class="stat-value">{{ profileData.floor_count }}</div>
+                <div class="stat-label">回复</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">{{ profileData.followers_count }}</div>
+                <div class="stat-label">粉丝</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">{{ profileData.following_count }}</div>
+                <div class="stat-label">关注</div>
               </div>
             </div>
+            
+            <!-- 关注按钮 -->
+            <div v-if="!isCurrentUser" class="follow-action">
+              <el-button 
+                :type="profileData.is_following ? 'danger' : 'primary'" 
+                :plain="profileData.is_following"
+                @click="handleFollowAction"
+                :loading="followActionLoading"
+              >
+                {{ profileData.is_following ? '取消关注' : '关注' }}
+              </el-button>
+            </div>
+            
+            <!-- 个人资料标签页 -->
+            <el-tabs v-model="activeTab" class="profile-tabs">
+              <el-tab-pane label="个人资料" name="profile">
+                <el-descriptions :column="1" border>
+                  <el-descriptions-item label="用户名">{{ profileData.user.username }}</el-descriptions-item>
+                  <el-descriptions-item label="邮箱">{{ profileData.user.email }}</el-descriptions-item>
+                  <el-descriptions-item label="注册时间">{{ formatDate(profileData.user.created_at) }}</el-descriptions-item>
+                  <el-descriptions-item label="上次登录">
+                    {{ profileData.user.last_login ? formatDate(profileData.user.last_login) : '暂无记录' }}
+                  </el-descriptions-item>
+                </el-descriptions>
+                
+                <div class="bio-section">
+                  <div class="bio-header">
+                    <h3>个人简介</h3>
+                    <el-button v-if="isCurrentUser" type="primary" size="small" @click="showBioEdit = true">编辑</el-button>
+                  </div>
+                  <div class="bio-content">
+                    {{ profileData.user.bio || '这个人很懒，还没有填写个人简介...' }}
+                  </div>
+                </div>
+              </el-tab-pane>
+              
+              <el-tab-pane :label="`关注 (${profileData.following_count})`" name="following">
+                <following-list 
+                  :userId="userId" 
+                  @refresh-profile="fetchProfileData" 
+                />
+              </el-tab-pane>
+              
+              <el-tab-pane label="沙雕网名" name="nickname">
+                <nickname-generator />
+              </el-tab-pane>
+            </el-tabs>
           </div>
           
           <div v-else class="loading-container">
@@ -151,11 +196,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, computed, reactive, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { ElMessage } from 'element-plus';
 import { useUserStore } from '../stores/user';
-import { Plus } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
+import FollowingList from '../components/FollowingList.vue';
+import NicknameGenerator from '../components/NicknameGenerator.vue';
+import axios from 'axios';
 
 const router = useRouter();
 const route = useRoute();
@@ -164,15 +211,13 @@ const userStore = useUserStore();
 // 判断是否为当前用户的空间
 const userId = ref(null);
 const isCurrentUser = computed(() => !userId.value);
-
-// 其他用户的头像URL
-const userAvatarUrl = ref('');
-
-// 个人资料数据
 const profileData = ref(null);
 const postsData = ref(null);
 const currentPage = ref(1);
 const pageSize = ref(10);
+const userAvatarUrl = ref('');
+const activeTab = ref('profile');
+const followActionLoading = ref(false);
 
 // 头像上传相关
 const showAvatarUpload = ref(false);
@@ -336,12 +381,53 @@ const handleAvatarClick = () => {
   }
 };
 
+  // 关注/取消关注用户
+  const handleFollowAction = async () => {
+    if (!userStore.isLoggedIn) {
+      ElMessage.warning('请先登录');
+      router.push('/login');
+      return;
+    }
+    
+    followActionLoading.value = true;
+    try {
+      if (profileData.value.is_following) {
+        // 取消关注
+        await axios.delete(`/api/follow/${userId.value}`, {
+          headers: {
+            Authorization: `Bearer ${userStore.token}`
+          }
+        });
+        ElMessage.success('已取消关注');
+        profileData.value.is_following = false;
+        profileData.value.followers_count--;
+      } else {
+        // 关注用户
+        await axios.post('/api/follow', {
+          followed_id: userId.value
+        }, {
+          headers: {
+            Authorization: `Bearer ${userStore.token}`
+          }
+        });
+        ElMessage.success('关注成功');
+        profileData.value.is_following = true;
+        profileData.value.followers_count++;
+      }
+    } catch (error) {
+      console.error('关注操作失败:', error);
+      ElMessage.error('操作失败，请重试');
+    } finally {
+      followActionLoading.value = false;
+    }
+  };
+
+// 组件挂载时获取数据
 onMounted(async () => {
   // 检查是查看自己的空间还是其他用户的空间
   if (route.params.id) {
     userId.value = route.params.id;
   }
-  
   // 如果是查看自己的空间，需要登录
   if (isCurrentUser.value && !userStore.isLoggedIn) {
     router.push('/login');
@@ -384,6 +470,41 @@ onMounted(async () => {
   margin-top: 8px;
   font-size: 12px;
   color: #909399;
+}
+
+.user-stats {
+  display: flex;
+  justify-content: space-around;
+  margin: 20px 0;
+  text-align: center;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: bold;
+  color: #303133;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 5px;
+}
+
+.follow-action {
+  display: flex;
+  justify-content: center;
+  margin: 15px 0;
+}
+
+.profile-tabs {
+  margin-top: 20px;
 }
 
 .bio-section {

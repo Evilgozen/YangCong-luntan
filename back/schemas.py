@@ -110,9 +110,34 @@ class UserProfileResponse(SQLModel):
     user: UserResponse
     post_count: int
     floor_count: int
+    followers_count: int = 0
+    following_count: int = 0
+    is_following: bool = False  # 当前登录用户是否关注了此用户
 
 class UserPostsResponse(SQLModel):
     total: int
     page: int
     page_size: int
     results: List[PostResponse]
+
+# 关注模式
+class FollowCreate(SQLModel):
+    followed_id: int
+
+class FollowResponse(SQLModel):
+    follower_id: int
+    followed_id: int
+    created_at: datetime
+    follower: UserResponse
+    followed: UserResponse
+    
+    class Config:
+        from_attributes = True
+
+class UserFollowsResponse(SQLModel):
+    followers: List[UserResponse]
+    following: List[UserResponse]
+    followers_count: int
+    following_count: int
+    page: int = 1
+    page_size: int = 10

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlmodel import Session, select, func
 from typing import List, Optional
 
@@ -29,15 +29,27 @@ async def get_my_profile(
     floor_count_query = select(func.count()).where(models.Floor.author_id == current_user.id)
     floor_count = db.exec(floor_count_query).one()
     
+    # 查询粉丝数量
+    followers_count_query = select(func.count()).where(models.Follow.followed_id == current_user.id)
+    followers_count = db.exec(followers_count_query).one()
+    
+    # 查询关注数量
+    following_count_query = select(func.count()).where(models.Follow.follower_id == current_user.id)
+    following_count = db.exec(following_count_query).one()
+    
     return {
         "user": current_user,
         "post_count": post_count,
-        "floor_count": floor_count
+        "floor_count": floor_count,
+        "followers_count": followers_count,
+        "following_count": following_count,
+        "is_following": False  # 自己不能关注自己
     }
 
 @router.get("/users/{user_id}", response_model=schemas.UserProfileResponse)
 async def get_user_profile(
     user_id: int,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """
@@ -58,10 +70,52 @@ async def get_user_profile(
     floor_count_query = select(func.count()).where(models.Floor.author_id == user_id)
     floor_count = db.exec(floor_count_query).one()
     
+    # 查询粉丝数量
+    followers_count_query = select(func.count()).where(models.Follow.followed_id == user_id)
+    followers_count = db.exec(followers_count_query).one()
+    
+    # 查询关注数量
+    following_count_query = select(func.count()).where(models.Follow.follower_id == user_id)
+    following_count = db.exec(following_count_query).one()
+    
+    # 检查当前登录用户是否已关注该用户
+    is_following = False
+    current_user = None
+    
+    try:
+        # 尝试获取当前登录用户（可能未登录）
+        token = None
+        for param in request.query_params:
+            if param.lower() == "token":
+                token = request.query_params[param]
+                break
+        
+        if token:
+            from auth import decode_access_token
+            payload = decode_access_token(token)
+            username = payload.get("sub")
+            if username:
+                user_statement = select(models.User).where(models.User.username == username)
+                current_user = db.exec(user_statement).first()
+    except Exception:
+        # 如果获取当前用户失败，忽略错误
+        pass
+    
+    # 如果获取到当前用户，检查是否已关注
+    if current_user:
+        follow_statement = select(models.Follow).where(
+            models.Follow.follower_id == current_user.id,
+            models.Follow.followed_id == user_id
+        )
+        is_following = db.exec(follow_statement).first() is not None
+    
     return {
         "user": user,
         "post_count": post_count,
-        "floor_count": floor_count
+        "floor_count": floor_count,
+        "followers_count": followers_count,
+        "following_count": following_count,
+        "is_following": is_following
     }
 
 @router.get("/me/posts", response_model=schemas.UserPostsResponse)

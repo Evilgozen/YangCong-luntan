@@ -33,6 +33,12 @@
           </span>
           <span class="time">发布于: {{ formatDate(post.created_at) }}</span>
           <span class="views"><el-icon><View /></el-icon> {{ post.view_count }}</span>
+          <span class="likes" @click="toggleLike">
+            <el-icon :class="{ 'liked': post.is_liked }">
+              <Star />
+            </el-icon>
+            {{ post.like_count || 0 }}
+          </span>
         </div>
         
         <div class="post-tags" v-if="post.tags">
@@ -206,13 +212,15 @@ import { usePostStore } from '../stores/post';
 import { useUserStore } from '../stores/user';
 import { useFloorStore } from '../stores/floor';
 import { ElMessage } from 'element-plus';
-import { Edit, Delete, View } from '@element-plus/icons-vue';
+import { Edit, Delete, View, Star } from '@element-plus/icons-vue';
+import { useLikeStore } from '../stores/like';
 
 const route = useRoute();
 const router = useRouter();
 const postStore = usePostStore();
 const userStore = useUserStore();
 const floorStore = useFloorStore();
+const likeStore = useLikeStore(); // 添加这一行初始化likeStore
 
 const loading = ref(true);
 const error = ref(null);
@@ -251,6 +259,10 @@ async function fetchPostDetail() {
   
   try {
     await postStore.getPostById(postId);
+    // 获取帖子的点赞状态
+    if (post.value) {
+      await updatePostLikeStatus();
+    }
   } catch (err) {
     error.value = err.message || '获取帖子详情失败';
     console.error(err);
@@ -424,9 +436,56 @@ function canEditFloor(floor) {
   if (!userStore.user) return false;
   return floor.author_id === userStore.user.id || userStore.user.is_admin;
 }
+
+// 添加更新帖子点赞状态的方法
+async function updatePostLikeStatus() {
+  try {
+    const likeStatus = await likeStore.getPostLikeStatus(post.value.id);
+    post.value.is_liked = likeStatus.is_liked;
+    post.value.like_count = likeStatus.like_count;
+  } catch (error) {
+    console.error('获取点赞状态失败', error);
+  }
+}
+
+// 添加点赞/取消点赞方法
+async function toggleLike() {
+  if (!post.value) return;
+  
+  try {
+    if (post.value.is_liked) {
+      await likeStore.unlikePost(post.value.id);
+      post.value.is_liked = false;
+      post.value.like_count--;
+    } else {
+      await likeStore.likePost(post.value.id);
+      post.value.is_liked = true;
+      post.value.like_count++;
+    }
+  } catch (err) {
+    ElMessage.error(err.message || '操作失败');
+  }
+}
 </script>
 
 <style scoped>
+.likes {
+  margin-left: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.likes .el-icon {
+  font-size: 16px;
+  transition: all 0.3s;
+}
+
+.likes .liked {
+  color: #e6a23c;
+  transform: scale(1.2);
+}
 .post-detail-container {
   max-width: 900px;
   margin: 0 auto;

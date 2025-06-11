@@ -71,11 +71,23 @@ def get_posts(
     )
     posts = db.exec(query).all()
     
-    # 为每个帖子添加楼层数量
+    # 为每个帖子添加楼层数量和点赞信息
     result_posts = []
     for post in posts:
+        # 查询楼层数量
         floor_count_query = select(func.count()).where(models.Floor.post_id == post.id)
         floor_count = db.exec(floor_count_query).one()
+        
+        # 查询点赞数量
+        like_count_query = select(func.count()).where(models.PostLike.post_id == post.id)
+        like_count = db.exec(like_count_query).one()
+        
+        # 查询当前用户是否点赞
+        statement = select(models.PostLike).where(
+            models.PostLike.user_id == current_user.id,
+            models.PostLike.post_id == post.id
+        )
+        is_liked = db.exec(statement).first() is not None
         
         post_dict = {
             "id": post.id,
@@ -89,7 +101,9 @@ def get_posts(
             "tags": post.tags,
             "author_id": post.author_id,
             "author": post.author,
-            "floor_count": floor_count
+            "floor_count": floor_count,
+            "like_count": like_count,
+            "is_liked": is_liked
         }
         result_posts.append(post_dict)
     
@@ -192,21 +206,33 @@ def get_post(
     db: Session = Depends(get_db)
 ):
     # 查询帖子
-    query = select(models.Post).where(models.Post.id == post_id)
-    post = db.exec(query).first()
-    
+    statement = select(models.Post).where(models.Post.id == post_id)
+    post = db.exec(statement).first()
     if not post:
         raise HTTPException(status_code=404, detail="帖子不存在")
     
     # 增加浏览次数
     post.view_count += 1
+    db.add(post)
     db.commit()
+    db.refresh(post)
     
     # 查询楼层数量
-    floor_count_query = select(func.count()).where(models.Floor.post_id == post.id)
+    floor_count_query = select(func.count()).where(models.Floor.post_id == post_id)
     floor_count = db.exec(floor_count_query).one()
     
-    # 创建包含楼层数量的响应
+    # 查询点赞数量
+    like_count_query = select(func.count()).where(models.PostLike.post_id == post_id)
+    like_count = db.exec(like_count_query).one()
+    
+    # 查询当前用户是否点赞
+    statement = select(models.PostLike).where(
+        models.PostLike.user_id == current_user.id,
+        models.PostLike.post_id == post_id
+    )
+    is_liked = db.exec(statement).first() is not None
+    
+    # 添加楼层数量和点赞信息到响应中
     post_dict = {
         "id": post.id,
         "title": post.title,
@@ -219,7 +245,9 @@ def get_post(
         "tags": post.tags,
         "author_id": post.author_id,
         "author": post.author,
-        "floor_count": floor_count
+        "floor_count": floor_count,
+        "like_count": like_count,
+        "is_liked": is_liked
     }
     
     return post_dict

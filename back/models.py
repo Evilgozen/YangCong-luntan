@@ -29,6 +29,9 @@ class User(UserBase, table=True):
     # 关注关系
     followers: List["Follow"] = Relationship(back_populates="followed", sa_relationship_kwargs={"foreign_keys": "[Follow.followed_id]", "cascade": "all, delete-orphan"})
     following: List["Follow"] = Relationship(back_populates="follower", sa_relationship_kwargs={"foreign_keys": "[Follow.follower_id]", "cascade": "all, delete-orphan"})
+    
+    # 点赞关系
+    post_likes: List["PostLike"] = Relationship(back_populates="user", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 # 带关系的模型（用于API响应）
 class UserRead(UserBase):
@@ -57,6 +60,7 @@ class Post(PostBase, table=True):
     # 定义关系但不作为表字段
     author: Optional["User"] = Relationship(back_populates="posts")
     floors: List["Floor"] = Relationship(back_populates="post", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    likes: List["PostLike"] = Relationship(back_populates="post", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 # 基础楼层模型
 class FloorBase(SQLModel):
@@ -97,3 +101,14 @@ class Follow(SQLModel, table=True):
     # 定义关系但不作为表字段
     follower: "User" = Relationship(back_populates="following", sa_relationship_kwargs={"foreign_keys": "[Follow.follower_id]"})
     followed: "User" = Relationship(back_populates="followers", sa_relationship_kwargs={"foreign_keys": "[Follow.followed_id]"})
+
+# 帖子点赞关系模型
+class PostLike(SQLModel, table=True):
+    # 使用复合主键，一个用户只能点赞一个帖子一次
+    user_id: int = Field(foreign_key="user.id", primary_key=True)
+    post_id: int = Field(foreign_key="post.id", primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # 定义关系但不作为表字段
+    user: "User" = Relationship(back_populates="post_likes")
+    post: "Post" = Relationship(back_populates="likes")

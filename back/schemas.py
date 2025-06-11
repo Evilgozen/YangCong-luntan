@@ -65,6 +65,8 @@ class PostResponse(PostBase):
     updated_at: datetime
     author: UserResponse
     floor_count: Optional[int] = None  # 非数据库字段，用于API返回
+    like_count: Optional[int] = None  # 点赞数量
+    is_liked: Optional[bool] = None  # 当前用户是否点赞
 
     class Config:
         from_attributes = True
@@ -139,5 +141,25 @@ class UserFollowsResponse(SQLModel):
     following: List[UserResponse]
     followers_count: int
     following_count: int
+    page: int = 1
+    page_size: int = 10
+
+# 点赞模式
+class PostLikeCreate(SQLModel):
+    post_id: int
+
+class PostLikeResponse(SQLModel):
+    user_id: int
+    post_id: int
+    created_at: datetime
+    user: UserResponse
+    
+    class Config:
+        from_attributes = True
+
+class PostLikesResponse(SQLModel):
+    likes: List[PostLikeResponse]
+    like_count: int
+    is_liked: bool
     page: int = 1
     page_size: int = 10

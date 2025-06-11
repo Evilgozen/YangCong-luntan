@@ -53,7 +53,14 @@
                 {{ post.author.username }}
               </span>
               <span class="time">{{ formatDate(post.created_at) }}</span>
+              <!-- 在post-meta部分添加，大约在第56行的views后面 -->
               <span class="views"><el-icon><View /></el-icon> {{ post.view_count }}</span>
+              <span class="likes" @click="toggleLike(post, $event)">
+                <el-icon :class="{ 'liked': post.is_liked }">
+                  <Star />
+                </el-icon>
+                {{ post.like_count || 0 }}
+              </span>
             </div>
           </div>
           <p class="post-content">{{ truncateContent(post.content) }}</p>
@@ -92,7 +99,8 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useUserStore } from '../stores/user';
 import { usePostStore } from '../stores/post';
 import { useRouter, useRoute } from 'vue-router';
-import { Search, View, Plus } from '@element-plus/icons-vue';
+import { Search, View, Plus, Star } from '@element-plus/icons-vue';
+import { useLikeStore } from '../stores/like';
 import { ElMessage } from 'element-plus';
 
 const router = useRouter();
@@ -144,6 +152,10 @@ async function fetchPosts() {
   loading.value = true;
   try {
     await postStore.fetchPosts(currentPage.value, pageSize.value);
+    // 获取每个帖子的点赞状态
+    if (postStore.posts.length > 0) {
+      await updatePostsLikeStatus();
+    }
   } catch (error) {
     ElMessage.error('获取帖子失败');
     console.error(error);
@@ -158,6 +170,10 @@ async function handleSearch() {
   currentPage.value = 1; // 重置到第一页
   try {
     await postStore.searchPosts(searchQuery.value, currentPage.value, pageSize.value);
+    // 获取每个帖子的点赞状态
+    if (postStore.posts.length > 0) {
+      await updatePostsLikeStatus();
+    }
   } catch (error) {
     ElMessage.error('搜索失败');
     console.error(error);
@@ -191,6 +207,10 @@ async function fetchPostsWithCurrentSearch() {
       await postStore.searchPosts(searchQuery.value, currentPage.value, pageSize.value);
     } else {
       await postStore.fetchPosts(currentPage.value, pageSize.value);
+    }
+    // 获取每个帖子的点赞状态
+    if (postStore.posts.length > 0) {
+      await updatePostsLikeStatus();
     }
   } catch (error) {
     ElMessage.error('获取帖子失败');
@@ -234,6 +254,42 @@ function truncateContent(content) {
 function parseTags(tags) {
   if (!tags) return [];
   return tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+}
+
+// 在setup部分添加
+const likeStore = useLikeStore();
+
+// 更新所有帖子的点赞状态
+async function updatePostsLikeStatus() {
+  try {
+    for (const post of postStore.posts) {
+      const likeStatus = await likeStore.getPostLikeStatus(post.id);
+      post.is_liked = likeStatus.is_liked;
+      post.like_count = likeStatus.like_count;
+    }
+  } catch (error) {
+    console.error('获取点赞状态失败', error);
+  }
+}
+
+// 添加点赞/取消点赞方法
+async function toggleLike(post, event) {
+  // 阻止事件冒泡，避免点击点赞按钮时触发帖子详情跳转
+  event.stopPropagation();
+  
+  try {
+    if (post.is_liked) {
+      await likeStore.unlikePost(post.id);
+      post.is_liked = false;
+      post.like_count--;
+    } else {
+      await likeStore.likePost(post.id);
+      post.is_liked = true;
+      post.like_count++;
+    }
+  } catch (err) {
+    ElMessage.error(err.message || '操作失败');
+  }
 }
 </script>
 
@@ -352,5 +408,23 @@ function parseTags(tags) {
   display: flex;
   justify-content: center;
   width: 100%;
+}
+/* 在<style>部分添加 */
+.likes {
+  margin-left: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.likes .el-icon {
+  font-size: 16px;
+  transition: all 0.3s;
+}
+
+.likes .liked {
+  color: #e6a23c;
+  transform: scale(1.2);
 }
 </style>

@@ -11,7 +11,7 @@ import models
 import schemas
 from database import engine, get_db
 from auth import get_current_user, create_access_token
-from routers import post, floor, user, profile, follow, nickname
+from routers import post, floor, user, profile, follow, nickname, like
 
 # 为所有表模型创建表，会根据database的元数据自动创建
 SQLModel.metadata.create_all(engine)
@@ -119,6 +119,7 @@ app.include_router(user.router)
 app.include_router(profile.router)
 app.include_router(follow.router)
 app.include_router(nickname.router)
+app.include_router(like.router)
 
 if __name__ == "__main__":
     import uvicorn
